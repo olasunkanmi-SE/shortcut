@@ -7,8 +7,11 @@
     "dev": "nodemon --exec ts-node src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
+    "start:prod": "NODE_ENV=production node dist/index.js",
+    "heroku-postbuild": "npm run build",
     "lint": "eslint src/**/*.ts",
     "test": "jest",
+    "test:prod": "NODE_ENV=test jest",
     "clean": "rimraf dist"
   },
   "dependencies": {

@@ -174,21 +174,57 @@ Key files:
 
 ## Deployment
 
-### Backend
+### Quick Deployment
+
+Run the deployment script:
+
+```bash
+./deploy.sh
+```
+
+### Docker Deployment
+
+```bash
+# Build and start with Docker
+npm run docker:build
+npm run docker:up
+
+# Access the application
+# Frontend: http://localhost:3000
+# Backend: http://localhost:3001
+```
+
+### Manual Deployment
+
+#### Backend
 
 ```bash
 cd packages/backend
 npm run build
-npm start
+npm run start:prod
 ```
 
-### Frontend
+#### Frontend
 
 ```bash
 cd packages/frontend
 npm run build
 # Deploy the dist/ folder to your hosting service
 ```
+
+### Environment Variables
+
+**Frontend (.env.production):**
+
+- `VITE_API_BASE_URL` - Your backend API URL
+
+**Backend (.env.production):**
+
+- `NODE_ENV=production`
+- `PORT` - Server port (usually set by hosting platform)
+- `FRONTEND_URL` - Your frontend URL for CORS
+
+📖 See `DEPLOYMENT.md` for detailed deployment instructions and platform-specific guides.
 
 ## VS Code Setup
 

@@ -13,8 +13,15 @@
     "build": "npm run build --workspaces",
     "build:backend": "npm run build --workspace=@fullstack/backend",
     "build:frontend": "npm run build --workspace=@fullstack/frontend",
+    "start": "npm run start --workspace=@fullstack/backend",
+    "start:prod": "NODE_ENV=production npm run start --workspace=@fullstack/backend",
+    "deploy": "./deploy.sh",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
     "lint": "npm run lint --workspaces",
     "test": "npm run test --workspaces",
+    "test:prod": "NODE_ENV=test npm run test --workspaces",
     "clean": "npm run clean --workspaces && rimraf node_modules"
   },
   "devDependencies": {
