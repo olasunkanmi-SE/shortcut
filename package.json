@@ -25,15 +25,21 @@
     "clean": "npm run clean --workspaces && rimraf node_modules"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2",
-    "rimraf": "^5.0.5",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/mongodb": "^4.0.6",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
+    "concurrently": "^8.2.2",
     "eslint": "^8.45.0",
+    "rimraf": "^5.0.5",
     "typescript": "^5.1.6"
   },
   "engines": {
     "node": ">=18.0.0",
     "npm": ">=9.0.0"
+  },
+  "dependencies": {
+    "jsonwebtoken": "^9.0.2",
+    "mongodb": "^6.18.0"
   }
 }

@@ -12,7 +12,12 @@ dotenv.config();
 import { TYPES } from "./types";
 import { AppController } from "./controllers/AppController";
 import { UserController } from "./controllers/UserController";
+import { AuctionController } from "./controllers/AuctionController";
 import { UserService } from "./services/UserService";
+import { AuctionService } from "./services/AuctionService";
+import { UserRepository } from "./repositories/UserRepository";
+import { AuctionRepository } from "./repositories/auctionRepository";
+import { connectDB } from "./infrastructure/db";
 
 class Server {
   private app: express.Application;
@@ -30,12 +35,18 @@ class Server {
   }
 
   private setupContainer(): void {
+    // Bind repositories
+    this.container.bind<UserRepository>(TYPES.UserRepository).to(UserRepository);
+    this.container.bind<AuctionRepository>(TYPES.AuctionRepository).to(AuctionRepository);
+
     // Bind services
     this.container.bind<UserService>(TYPES.UserService).to(UserService);
+    this.container.bind<AuctionService>(TYPES.AuctionService).to(AuctionService);
 
     // Bind controllers
     this.container.bind<AppController>(TYPES.AppController).to(AppController);
     this.container.bind<UserController>(TYPES.UserController).to(UserController);
+    this.container.bind<AuctionController>(TYPES.AuctionController).to(AuctionController);
   }
 
   private setupMiddleware(): void {
@@ -53,12 +64,14 @@ class Server {
   private setupRoutes(): void {
     const appController = this.container.get<AppController>(TYPES.AppController);
     const userController = this.container.get<UserController>(TYPES.UserController);
+    const auctionController = this.container.get<AuctionController>(TYPES.AuctionController);
 
     // Health check
     this.app.get("/health", appController.healthCheck.bind(appController));
 
     // API routes
     this.app.use("/api/users", userController.getRouter());
+    this.app.use("/api/auctions", auctionController.getRouter());
 
     // 404 handler
     this.app.use("*", (req, res) => {
@@ -66,14 +79,31 @@ class Server {
     });
   }
 
-  public start(): void {
-    this.app.listen(this.port, () => {
-      console.log(`🚀 Backend server running on http://localhost:${this.port}`);
-      console.log(`📊 Health check available at http://localhost:${this.port}/health`);
-    });
+  public async start(): Promise<void> {
+    try {
+      // Connect to database first
+      await connectDB();
+
+      // Start the server
+      this.app.listen(this.port, () => {
+        console.log(`🚀 Backend server running on http://localhost:${this.port}`);
+        console.log(`📊 Health check available at http://localhost:${this.port}/health`);
+        console.log(`🔗 API endpoints available at http://localhost:${this.port}/api`);
+      });
+    } catch (error) {
+      console.error("Failed to start server:", error);
+      process.exit(1);
+    }
   }
 }
 
 // Start the server
-const server = new Server();
-server.start();
+async function startServer() {
+  const server = new Server();
+  await server.start();
+}
+
+startServer().catch((error) => {
+  console.error("Failed to start application:", error);
+  process.exit(1);
+});

@@ -9,6 +9,9 @@
     "start": "node dist/index.js",
     "start:prod": "NODE_ENV=production node dist/index.js",
     "heroku-postbuild": "npm run build",
+    "seed": "ts-node src/scripts/seed.ts",
+    "seed:auctions": "ts-node src/scripts/seedAuctions.ts",
+    "seed:prod": "NODE_ENV=production ts-node src/scripts/seed.ts",
     "lint": "eslint src/**/*.ts",
     "test": "jest",
     "test:prod": "NODE_ENV=test jest",
@@ -20,7 +23,8 @@
     "helmet": "^7.0.0",
     "inversify": "^6.0.1",
     "reflect-metadata": "^0.1.13",
-    "dotenv": "^16.3.1"
+    "dotenv": "^16.3.1",
+    "mongodb": "^6.1.0"
   },
   "devDependencies": {
     "@types/express": "^4.17.17",
@@ -32,6 +36,7 @@
     "@types/jest": "^29.5.3",
     "ts-jest": "^29.1.1",
     "supertest": "^6.3.3",
-    "@types/supertest": "^2.0.12"
+    "@types/supertest": "^2.0.12",
+    "@types/mongodb": "^4.0.7"
   }
 }

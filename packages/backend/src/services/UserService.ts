@@ -1,54 +1,82 @@
-import { injectable } from "inversify";
-
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-  createdAt: Date;
-}
-
-export interface CreateUserDto {
-  name: string;
-  email: string;
-}
+import { injectable, inject } from "inversify";
+import { TYPES } from "../types";
+import { UserRepository, User, CreateUserDto, UpdateUserDto } from "../repositories/UserRepository";
 
 @injectable()
 export class UserService {
-  private users: User[] = [
-    {
-      id: "1",
-      name: "John Doe",
-      email: "john@example.com",
-      createdAt: new Date("2023-01-01"),
-    },
-    {
-      id: "2",
-      name: "Jane Smith",
-      email: "jane@example.com",
-      createdAt: new Date("2023-01-02"),
-    },
-  ];
+  constructor(@inject(TYPES.UserRepository) private userRepository: UserRepository) {}
 
-  public async getAllUsers(): Promise<User[]> {
-    // Simulate async operation
-    return Promise.resolve(this.users);
+  async getAllUsers(): Promise<User[]> {
+    return await this.userRepository.findAll();
   }
 
-  public async getUserById(id: string): Promise<User | null> {
-    // Simulate async operation
-    const user = this.users.find((u) => u.id === id);
-    return Promise.resolve(user || null);
+  async getUserById(id: string): Promise<User | null> {
+    if (!id || id.trim() === "") {
+      throw new Error("User ID is required");
+    }
+    return await this.userRepository.findById(id);
   }
 
-  public async createUser(userData: CreateUserDto): Promise<User> {
-    // Simulate async operation
-    const newUser: User = {
-      id: (this.users.length + 1).toString(),
-      ...userData,
-      createdAt: new Date(),
+  async getUserByEmail(email: string): Promise<User | null> {
+    if (!email || !this.isValidEmail(email)) {
+      throw new Error("Valid email is required");
+    }
+    return await this.userRepository.findByEmail(email);
+  }
+
+  async createUser(userData: CreateUserDto): Promise<User> {
+    // Validation
+    if (!userData.name || userData.name.trim() === "") {
+      throw new Error("Name is required");
+    }
+    if (!userData.email || !this.isValidEmail(userData.email)) {
+      throw new Error("Valid email is required");
+    }
+
+    // Sanitize input
+    const sanitizedData: CreateUserDto = {
+      name: userData.name.trim(),
+      email: userData.email.toLowerCase().trim(),
     };
 
-    this.users.push(newUser);
-    return Promise.resolve(newUser);
+    return await this.userRepository.create(sanitizedData);
+  }
+
+  async updateUser(id: string, updateData: UpdateUserDto): Promise<User | null> {
+    if (!id || id.trim() === "") {
+      throw new Error("User ID is required");
+    }
+
+    // Validate email if provided
+    if (updateData.email && !this.isValidEmail(updateData.email)) {
+      throw new Error("Valid email is required");
+    }
+
+    // Sanitize input
+    const sanitizedData: UpdateUserDto = {};
+    if (updateData.name) {
+      sanitizedData.name = updateData.name.trim();
+    }
+    if (updateData.email) {
+      sanitizedData.email = updateData.email.toLowerCase().trim();
+    }
+
+    return await this.userRepository.update(id, sanitizedData);
+  }
+
+  async deleteUser(id: string): Promise<boolean> {
+    if (!id || id.trim() === "") {
+      throw new Error("User ID is required");
+    }
+    return await this.userRepository.delete(id);
+  }
+
+  async getUserCount(): Promise<number> {
+    return await this.userRepository.count();
+  }
+
+  private isValidEmail(email: string): boolean {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
   }
 }
