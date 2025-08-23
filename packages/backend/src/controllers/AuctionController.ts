@@ -1,7 +1,19 @@
-import { injectable, inject } from "inversify";
-import { Router, Request, Response } from "express";
-import { TYPES } from "../types";
-import { AuctionService } from "../services/AuctionService";
+import { injectable, inject } from 'inversify';
+import { Router, Request, Response } from 'express';
+import { TYPES } from '../types';
+import { AuctionService } from '../services/AuctionService';
+import { authMiddleware, optionalAuthMiddleware, AuthenticatedRequest } from '../middleware/authMiddleware';
+import { 
+  validate, 
+  validateQuery,
+  createAuctionSchema, 
+  updateAuctionSchema, 
+  placeBidSchema,
+  auctionQuerySchema,
+  validateIdParam 
+} from '../middleware/validation';
+import { parseAuctionParams, parseSearchParams, ParsedRequest } from '../middleware/queryParams';
+import { asyncHandler } from '../middleware/responseHandler';
 import {
   AuctionFilters,
   PaginationOptions,
@@ -22,25 +34,77 @@ export class AuctionController {
   }
 
   private setupRoutes(): void {
-    // Get routes
-    this.router.get("/", this.getAuctions.bind(this));
-    this.router.get("/search", this.searchAuctions.bind(this));
-    this.router.get("/active", this.getActiveAuctions.bind(this));
-    this.router.get("/ended", this.getEndedAuctions.bind(this));
-    this.router.get("/stats", this.getAuctionStats.bind(this));
-    this.router.get("/seller/:sellerId", this.getAuctionsBySeller.bind(this));
-    this.router.get("/:id", this.getAuctionById.bind(this));
+    // Get routes (public)
+    this.router.get("/", 
+      optionalAuthMiddleware,
+      validateQuery(auctionQuerySchema),
+      parseAuctionParams,
+      asyncHandler(this.getAuctions.bind(this))
+    );
+    this.router.get("/search", 
+      optionalAuthMiddleware,
+      validateQuery(auctionQuerySchema),
+      parseSearchParams,
+      asyncHandler(this.searchAuctions.bind(this))
+    );
+    this.router.get("/active", 
+      optionalAuthMiddleware,
+      validateQuery(auctionQuerySchema),
+      parseAuctionParams,
+      asyncHandler(this.getActiveAuctions.bind(this))
+    );
+    this.router.get("/ended", 
+      optionalAuthMiddleware,
+      validateQuery(auctionQuerySchema),
+      parseAuctionParams,
+      asyncHandler(this.getEndedAuctions.bind(this))
+    );
+    this.router.get("/stats", 
+      optionalAuthMiddleware,
+      asyncHandler(this.getAuctionStats.bind(this))
+    );
+    this.router.get("/seller/:sellerId", 
+      optionalAuthMiddleware,
+      asyncHandler(this.getAuctionsBySeller.bind(this))
+    );
+    this.router.get("/:id", 
+      optionalAuthMiddleware,
+      validateIdParam,
+      asyncHandler(this.getAuctionById.bind(this))
+    );
 
-    // Post routes
-    this.router.post("/", this.createAuction.bind(this));
-    this.router.post("/:id/bid", this.placeBid.bind(this));
-    this.router.post("/:id/end", this.endAuction.bind(this));
+    // Post routes (require authentication)
+    this.router.post("/", 
+      authMiddleware,
+      validate(createAuctionSchema),
+      asyncHandler(this.createAuction.bind(this))
+    );
+    this.router.post("/:id/bid", 
+      authMiddleware,
+      validateIdParam,
+      validate(placeBidSchema),
+      asyncHandler(this.placeBid.bind(this))
+    );
+    this.router.post("/:id/end", 
+      authMiddleware,
+      validateIdParam,
+      asyncHandler(this.endAuction.bind(this))
+    );
 
-    // Put routes
-    this.router.put("/:id", this.updateAuction.bind(this));
+    // Put routes (require authentication)
+    this.router.put("/:id", 
+      authMiddleware,
+      validateIdParam,
+      validate(updateAuctionSchema),
+      asyncHandler(this.updateAuction.bind(this))
+    );
 
-    // Delete routes
-    this.router.delete("/:id", this.deleteAuction.bind(this));
+    // Delete routes (require authentication)
+    this.router.delete("/:id", 
+      authMiddleware,
+      validateIdParam,
+      asyncHandler(this.deleteAuction.bind(this))
+    );
   }
 
   public getRouter(): Router {
@@ -50,423 +114,215 @@ export class AuctionController {
   /**
    * Get auctions with filtering and pagination
    */
-  private async getAuctions(req: Request, res: Response): Promise<void> {
-    try {
-      const filters = this.parseFilters(req.query);
-      const pagination = this.parsePagination(req.query);
-
-      const result = await this.auctionService.getAllAuctions(filters, pagination);
-
-      res.json({
-        success: true,
-        data: result,
-        message: `Found ${result.total} auctions`,
-      });
-    } catch (error) {
-      console.error("Error in getAuctions:", error);
-      const message = error instanceof Error ? error.message : "Failed to fetch auctions";
-      res.status(500).json({
-        success: false,
-        error: message,
-      });
-    }
+  private async getAuctions(req: ParsedRequest, res: Response): Promise<void> {
+    const filters = req.auctionFilters || {};
+    const pagination = req.paginationOptions || { page: 1, limit: 10 };
+    
+    const result = await this.auctionService.getAllAuctions(filters, pagination);
+    
+    res.success(result, `Found ${result.total} auctions`);
   }
 
   /**
    * Search auctions
    */
-  private async searchAuctions(req: Request, res: Response): Promise<void> {
-    try {
-      const { q: searchTerm } = req.query;
-      const pagination = this.parsePagination(req.query);
+  private async searchAuctions(req: ParsedRequest, res: Response): Promise<void> {
+    const { q: searchTerm } = req.query;
+    const pagination = req.paginationOptions || { page: 1, limit: 10 };
 
-      if (!searchTerm || typeof searchTerm !== "string") {
-        res.status(400).json({
-          success: false,
-          error: "Search term (q) is required",
-        });
-        return;
-      }
-
-      const result = await this.auctionService.searchAuctions(searchTerm, pagination);
-
-      res.json({
-        success: true,
-        data: result,
-        message: `Found ${result.total} auctions matching "${searchTerm}"`,
-      });
-    } catch (error) {
-      console.error("Error in searchAuctions:", error);
-      const message = error instanceof Error ? error.message : "Failed to search auctions";
-      res.status(500).json({
-        success: false,
-        error: message,
-      });
+    if (!searchTerm || typeof searchTerm !== "string") {
+      res.error("Search term (q) is required", undefined, 400);
+      return;
     }
+
+    const result = await this.auctionService.searchAuctions(searchTerm, pagination);
+
+    res.success(result, `Found ${result.total} auctions matching "${searchTerm}"`);
   }
 
   /**
    * Get active auctions
    */
-  private async getActiveAuctions(req: Request, res: Response): Promise<void> {
-    try {
-      const pagination = this.parsePagination(req.query);
-      const result = await this.auctionService.getActiveAuctions(pagination);
+  private async getActiveAuctions(req: ParsedRequest, res: Response): Promise<void> {
+    const pagination = req.paginationOptions || { page: 1, limit: 10 };
+    const result = await this.auctionService.getActiveAuctions(pagination);
 
-      res.json({
-        success: true,
-        data: result,
-        message: `Found ${result.total} active auctions`,
-      });
-    } catch (error) {
-      console.error("Error in getActiveAuctions:", error);
-      const message = error instanceof Error ? error.message : "Failed to fetch active auctions";
-      res.status(500).json({
-        success: false,
-        error: message,
-      });
-    }
+    res.success(result, `Found ${result.total} active auctions`);
   }
 
   /**
    * Get ended auctions
    */
-  private async getEndedAuctions(req: Request, res: Response): Promise<void> {
-    try {
-      const pagination = this.parsePagination(req.query);
-      const result = await this.auctionService.getEndedAuctions(pagination);
+  private async getEndedAuctions(req: ParsedRequest, res: Response): Promise<void> {
+    const pagination = req.paginationOptions || { page: 1, limit: 10 };
+    const result = await this.auctionService.getEndedAuctions(pagination);
 
-      res.json({
-        success: true,
-        data: result,
-        message: `Found ${result.total} ended auctions`,
-      });
-    } catch (error) {
-      console.error("Error in getEndedAuctions:", error);
-      const message = error instanceof Error ? error.message : "Failed to fetch ended auctions";
-      res.status(500).json({
-        success: false,
-        error: message,
-      });
-    }
+    res.success(result, `Found ${result.total} ended auctions`);
   }
 
   /**
    * Get auction by ID
    */
   private async getAuctionById(req: Request, res: Response): Promise<void> {
-    try {
-      const { id } = req.params;
+    const { id } = req.params;
 
-      // Try to parse as numeric ID first, then as ObjectId
-      let auction = null;
-      const numericId = parseInt(id);
+    // Try to parse as numeric ID first, then as ObjectId
+    let auction = null;
+    const numericId = parseInt(id);
 
-      if (!isNaN(numericId)) {
-        auction = await this.auctionService.getAuctionByNumericId(numericId);
-      } else {
-        auction = await this.auctionService.getAuctionById(id);
-      }
-
-      if (!auction) {
-        res.status(404).json({
-          success: false,
-          error: "Auction not found",
-        });
-        return;
-      }
-
-      res.json({
-        success: true,
-        data: auction,
-      });
-    } catch (error) {
-      console.error("Error in getAuctionById:", error);
-      const message = error instanceof Error ? error.message : "Failed to fetch auction";
-      res.status(500).json({
-        success: false,
-        error: message,
-      });
+    if (!isNaN(numericId)) {
+      auction = await this.auctionService.getAuctionByNumericId(numericId);
+    } else {
+      auction = await this.auctionService.getAuctionById(id);
     }
+
+    if (!auction) {
+      res.notFound("Auction not found");
+      return;
+    }
+
+    res.success(auction);
   }
 
   /**
    * Get auctions by seller
    */
   private async getAuctionsBySeller(req: Request, res: Response): Promise<void> {
-    try {
-      const { sellerId } = req.params;
-      const sellerIdNum = parseInt(sellerId);
+    const { sellerId } = req.params;
+    const sellerIdNum = parseInt(sellerId);
 
-      if (isNaN(sellerIdNum)) {
-        res.status(400).json({
-          success: false,
-          error: "Valid seller ID is required",
-        });
-        return;
-      }
-
-      const pagination = this.parsePagination(req.query);
-      const result = await this.auctionService.getAuctionsBySeller(sellerIdNum, pagination);
-
-      res.json({
-        success: true,
-        data: result,
-        message: `Found ${result.total} auctions by seller ${sellerIdNum}`,
-      });
-    } catch (error) {
-      console.error("Error in getAuctionsBySeller:", error);
-      const message = error instanceof Error ? error.message : "Failed to fetch auctions by seller";
-      res.status(500).json({
-        success: false,
-        error: message,
-      });
+    if (isNaN(sellerIdNum)) {
+      res.error("Valid seller ID is required", 400);
+      return;
     }
+
+    // For seller-specific routes, we'll use default pagination since parseAuctionParams middleware isn't applied
+    const pagination = { page: 1, limit: 10 }; // Default values
+    const result = await this.auctionService.getAuctionsBySeller(sellerIdNum, pagination);
+
+    res.success(result, `Found ${result.total} auctions by seller ${sellerIdNum}`);
   }
 
   /**
    * Get auction statistics
    */
   private async getAuctionStats(req: Request, res: Response): Promise<void> {
-    try {
-      const stats = await this.auctionService.getAuctionStats();
-
-      res.json({
-        success: true,
-        data: stats,
-      });
-    } catch (error) {
-      console.error("Error in getAuctionStats:", error);
-      const message = error instanceof Error ? error.message : "Failed to get auction statistics";
-      res.status(500).json({
-        success: false,
-        error: message,
-      });
-    }
+    const stats = await this.auctionService.getAuctionStats();
+    res.success(stats);
   }
 
   /**
    * Create new auction
    */
-  private async createAuction(req: Request, res: Response): Promise<void> {
-    try {
-      const auctionData: CreateAuctionDto = req.body;
-
-      // Basic validation
-      if (!auctionData) {
-        res.status(400).json({
-          success: false,
-          error: "Auction data is required",
-        });
-        return;
-      }
-
-      const auction = await this.auctionService.createAuction(auctionData);
-
-      res.status(201).json({
-        success: true,
-        data: auction,
-        message: "Auction created successfully",
-      });
-    } catch (error) {
-      console.error("Error in createAuction:", error);
-      const message = error instanceof Error ? error.message : "Failed to create auction";
-      const statusCode = message.includes("required") || message.includes("Invalid") ? 400 : 500;
-
-      res.status(statusCode).json({
-        success: false,
-        error: message,
-      });
+  private async createAuction(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const auctionData: CreateAuctionDto = req.body;
+    
+    // Add seller information from authenticated user
+    if (!req.user) {
+      res.error("User authentication required", undefined, 401);
+      return;
     }
+    
+    const sellerId = req.user.id;
+    const auctionWithSeller = { ...auctionData, seller_id: sellerId };
+    
+    const auction = await this.auctionService.createAuction(auctionWithSeller);
+    
+    res.created(auction, "Auction created successfully");
   }
 
   /**
    * Update auction
    */
-  private async updateAuction(req: Request, res: Response): Promise<void> {
-    try {
-      const { id } = req.params;
-      const updateData: UpdateAuctionDto = req.body;
-
-      if (!updateData || Object.keys(updateData).length === 0) {
-        res.status(400).json({
-          success: false,
-          error: "Update data is required",
-        });
-        return;
-      }
-
-      const auction = await this.auctionService.updateAuction(id, updateData);
-
-      if (!auction) {
-        res.status(404).json({
-          success: false,
-          error: "Auction not found",
-        });
-        return;
-      }
-
-      res.json({
-        success: true,
-        data: auction,
-        message: "Auction updated successfully",
-      });
-    } catch (error) {
-      console.error("Error in updateAuction:", error);
-      const message = error instanceof Error ? error.message : "Failed to update auction";
-      const statusCode = message.includes("required") || message.includes("Invalid") ? 400 : 500;
-
-      res.status(statusCode).json({
-        success: false,
-        error: message,
-      });
+  private async updateAuction(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const { id } = req.params;
+    const updateData: UpdateAuctionDto = req.body;
+    
+    if (!req.user) {
+      res.error("User authentication required", undefined, 401);
+      return;
     }
+
+    if (!updateData || Object.keys(updateData).length === 0) {
+      res.error("Update data is required");
+      return;
+    }
+
+    const auction = await this.auctionService.updateAuction(id, updateData);
+
+    if (!auction) {
+      res.notFound("Auction not found");
+      return;
+    }
+
+    res.success(auction, "Auction updated successfully");
   }
 
   /**
    * Place a bid
    */
-  private async placeBid(req: Request, res: Response): Promise<void> {
-    try {
-      const { id } = req.params;
-      const bidData: PlaceBidDto = req.body;
-
-      if (!bidData || !bidData.user_id || !bidData.amount) {
-        res.status(400).json({
-          success: false,
-          error: "User ID and bid amount are required",
-        });
-        return;
-      }
-
-      const auction = await this.auctionService.placeBid(id, bidData);
-
-      if (!auction) {
-        res.status(404).json({
-          success: false,
-          error: "Auction not found",
-        });
-        return;
-      }
-
-      res.json({
-        success: true,
-        data: auction,
-        message: `Bid of $${bidData.amount} placed successfully`,
-      });
-    } catch (error) {
-      console.error("Error in placeBid:", error);
-      const message = error instanceof Error ? error.message : "Failed to place bid";
-      const statusCode =
-        message.includes("not active") || message.includes("ended") || message.includes("must be at least") ? 400 : 500;
-
-      res.status(statusCode).json({
-        success: false,
-        error: message,
-      });
+  private async placeBid(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const { id } = req.params;
+    const bidData: PlaceBidDto = req.body;
+    
+    if (!req.user) {
+      res.error("User authentication required", undefined, 401);
+      return;
     }
+
+    // Use authenticated user's ID instead of requiring it in the body
+    const bidWithUser = { ...bidData, user_id: req.user.id };
+
+    const auction = await this.auctionService.placeBid(id, bidWithUser);
+
+    if (!auction) {
+      res.notFound("Auction not found");
+      return;
+    }
+
+    res.success(auction, `Bid of $${bidData.amount} placed successfully`);
   }
 
   /**
    * End an auction
    */
-  private async endAuction(req: Request, res: Response): Promise<void> {
-    try {
-      const { id } = req.params;
-
-      const auction = await this.auctionService.endAuction(id);
-
-      if (!auction) {
-        res.status(404).json({
-          success: false,
-          error: "Auction not found or already ended",
-        });
-        return;
-      }
-
-      res.json({
-        success: true,
-        data: auction,
-        message: "Auction ended successfully",
-      });
-    } catch (error) {
-      console.error("Error in endAuction:", error);
-      const message = error instanceof Error ? error.message : "Failed to end auction";
-      res.status(500).json({
-        success: false,
-        error: message,
-      });
+  private async endAuction(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const { id } = req.params;
+    
+    if (!req.user) {
+      res.error("User authentication required", undefined, 401);
+      return;
     }
+
+    const auction = await this.auctionService.endAuction(id);
+
+    if (!auction) {
+      res.notFound("Auction not found or already ended");
+      return;
+    }
+
+    res.success(auction, "Auction ended successfully");
   }
 
   /**
    * Delete auction
    */
-  private async deleteAuction(req: Request, res: Response): Promise<void> {
-    try {
-      const { id } = req.params;
-
-      const deleted = await this.auctionService.deleteAuction(id);
-
-      if (!deleted) {
-        res.status(404).json({
-          success: false,
-          error: "Auction not found",
-        });
-        return;
-      }
-
-      res.json({
-        success: true,
-        message: "Auction deleted successfully",
-      });
-    } catch (error) {
-      console.error("Error in deleteAuction:", error);
-      const message = error instanceof Error ? error.message : "Failed to delete auction";
-      res.status(500).json({
-        success: false,
-        error: message,
-      });
+  private async deleteAuction(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const { id } = req.params;
+    
+    if (!req.user) {
+      res.error("User authentication required", undefined, 401);
+      return;
     }
+
+    const deleted = await this.auctionService.deleteAuction(id);
+
+    if (!deleted) {
+      res.notFound("Auction not found");
+      return;
+    }
+
+    res.success({ id }, "Auction deleted successfully");
   }
 
-  /**
-   * Parse filters from query parameters
-   */
-  private parseFilters(query: any): AuctionFilters {
-    const filters: AuctionFilters = {};
-
-    if (query.make) filters.make = String(query.make);
-    if (query.model) filters.model = String(query.model);
-    if (query.year_min) filters.year_min = parseInt(String(query.year_min));
-    if (query.year_max) filters.year_max = parseInt(String(query.year_max));
-    if (query.mileage_max) filters.mileage_max = parseInt(String(query.mileage_max));
-    if (query.condition && Object.values(VehicleCondition).includes(query.condition)) {
-      filters.condition = query.condition as VehicleCondition;
-    }
-    if (query.price_min) filters.price_min = parseInt(String(query.price_min));
-    if (query.price_max) filters.price_max = parseInt(String(query.price_max));
-    if (query.status && Object.values(AuctionStatus).includes(query.status)) {
-      filters.status = query.status as AuctionStatus;
-    }
-    if (query.seller_id) filters.seller_id = parseInt(String(query.seller_id));
-
-    return filters;
-  }
-
-  /**
-   * Parse pagination from query parameters
-   */
-  private parsePagination(query: any): PaginationOptions {
-    const pagination: PaginationOptions = {};
-
-    if (query.page) pagination.page = Math.max(1, parseInt(String(query.page)));
-    if (query.limit) pagination.limit = Math.min(100, Math.max(1, parseInt(String(query.limit))));
-    if (query.sort_by) pagination.sort_by = String(query.sort_by) as any;
-    if (query.sort_order && ["asc", "desc"].includes(query.sort_order)) {
-      pagination.sort_order = query.sort_order as "asc" | "desc";
-    }
-
-    return pagination;
-  }
 }

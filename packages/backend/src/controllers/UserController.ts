@@ -2,6 +2,15 @@ import { injectable, inject } from "inversify";
 import { Router, Request, Response } from "express";
 import { TYPES } from "../types";
 import { UserService } from "../services/UserService";
+import { authMiddleware, optionalAuthMiddleware, AuthenticatedRequest } from '../middleware/authMiddleware';
+import { 
+  validate, 
+  createUserSchema, 
+  updateUserSchema, 
+  loginSchema, 
+  validateIdParam 
+} from '../middleware/validation';
+import { asyncHandler } from '../middleware/responseHandler';
 
 @injectable()
 export class UserController {
@@ -13,12 +22,21 @@ export class UserController {
   }
 
   private setupRoutes(): void {
-    this.router.get("/", this.getUsers.bind(this));
-    this.router.get("/count", this.getUserCount.bind(this));
-    this.router.get("/:id", this.getUserById.bind(this));
-    this.router.post("/", this.createUser.bind(this));
-    this.router.put("/:id", this.updateUser.bind(this));
-    this.router.delete("/:id", this.deleteUser.bind(this));
+    // Public routes
+    this.router.post('/register', validate(createUserSchema), asyncHandler(this.createUser.bind(this)));
+    this.router.post('/login', validate(loginSchema), asyncHandler(this.loginUser.bind(this)));
+    
+    // Protected/Optional auth routes
+    this.router.get("/", optionalAuthMiddleware, asyncHandler(this.getUsers.bind(this)));
+    this.router.get("/count", optionalAuthMiddleware, asyncHandler(this.getUserCount.bind(this)));
+    this.router.get("/:id", validateIdParam, optionalAuthMiddleware, asyncHandler(this.getUserById.bind(this)));
+    this.router.put("/:id", validateIdParam, authMiddleware, validate(updateUserSchema), asyncHandler(this.updateUser.bind(this)));
+    this.router.delete("/:id", validateIdParam, authMiddleware, asyncHandler(this.deleteUser.bind(this)));
+    
+    // Profile routes
+    this.router.get('/profile/me', authMiddleware, asyncHandler(this.getProfile.bind(this)));
+    this.router.put('/profile/me', authMiddleware, validate(updateUserSchema), asyncHandler(this.updateProfile.bind(this)));
+    this.router.post('/logout', authMiddleware, asyncHandler(this.logout.bind(this)));
   }
 
   public getRouter(): Router {
@@ -26,93 +44,30 @@ export class UserController {
   }
 
   private async getUsers(req: Request, res: Response): Promise<void> {
-    try {
-      const users = await this.userService.getAllUsers();
-      res.json({
-        success: true,
-        data: users,
-        count: users.length,
-      });
-    } catch (error) {
-      console.error("Error in getUsers:", error);
-      res.status(500).json({
-        success: false,
-        error: "Failed to fetch users",
-      });
-    }
+    const users = await this.userService.getAllUsers();
+    res.success(users, `Found ${users.length} users`, users.length);
   }
 
   private async getUserById(req: Request, res: Response): Promise<void> {
-    try {
-      const { id } = req.params;
-      const user = await this.userService.getUserById(id);
-
-      if (!user) {
-        res.status(404).json({
-          success: false,
-          error: "User not found",
-        });
-        return;
-      }
-
-      res.json({
-        success: true,
-        data: user,
-      });
-    } catch (error) {
-      console.error("Error in getUserById:", error);
-      const message = error instanceof Error ? error.message : "Failed to fetch user";
-      res.status(500).json({
-        success: false,
-        error: message,
-      });
+    const { id } = req.params;
+    const user = await this.userService.getUserById(id);
+    
+    if (!user) {
+      res.error('User not found', null, 404);
+      return;
     }
+    
+    res.success(user);
   }
 
   private async getUserCount(req: Request, res: Response): Promise<void> {
-    try {
-      const count = await this.userService.getUserCount();
-      res.json({
-        success: true,
-        data: { count },
-      });
-    } catch (error) {
-      console.error("Error in getUserCount:", error);
-      res.status(500).json({
-        success: false,
-        error: "Failed to get user count",
-      });
-    }
+    const count = await this.userService.getUserCount();
+    res.success({ count }, `Total users: ${count}`);
   }
 
   private async createUser(req: Request, res: Response): Promise<void> {
-    try {
-      const { name, email } = req.body;
-
-      if (!name || !email) {
-        res.status(400).json({
-          success: false,
-          error: "Name and email are required",
-        });
-        return;
-      }
-
-      const user = await this.userService.createUser({ name, email });
-      res.status(201).json({
-        success: true,
-        data: user,
-        message: "User created successfully",
-      });
-    } catch (error) {
-      console.error("Error in createUser:", error);
-      const message = error instanceof Error ? error.message : "Failed to create user";
-      const statusCode = message.includes("already exists") ? 409 : 500;
-
-      res.status(statusCode).json({
-        success: false,
-        error: message,
-      });
-    }
+    const user = await this.userService.createUser(req.body);
+    res.success(user, 'User created successfully');
   }
 
   private async updateUser(req: Request, res: Response): Promise<void> {
@@ -178,5 +133,74 @@ export class UserController {
         error: message,
       });
     }
+  }
+
+  /**
+   * New authentication methods
+   */
+  private async loginUser(req: Request, res: Response): Promise<void> {
+    const { email, password } = req.body;
+    const result = await this.userService.authenticateUser(email, password);
+    
+    if (!result) {
+      res.error('Invalid email or password', null, 401);
+      return;
+    }
+    
+    // Set HTTP-only cookie for security
+    res.cookie('accessToken', result.token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    });
+    
+    res.success({
+      user: result.user,
+      token: result.token
+    }, 'Login successful');
+  }
+
+  private async getProfile(req: AuthenticatedRequest, res: Response): Promise<void> {
+    if (!req.user) {
+      res.error('Authentication required', null, 401);
+      return;
+    }
+    
+    const user = await this.userService.getUserById(req.user.id.toString());
+    
+    if (!user) {
+      res.error('User not found', null, 404);
+      return;
+    }
+    
+    res.success(user, 'Profile retrieved successfully');
+  }
+
+  private async updateProfile(req: AuthenticatedRequest, res: Response): Promise<void> {
+    if (!req.user) {
+      res.error('Authentication required', null, 401);
+      return;
+    }
+    
+    const user = await this.userService.updateUser(req.user.id.toString(), req.body);
+    
+    if (!user) {
+      res.error('User not found', null, 404);
+      return;
+    }
+    
+    res.success(user, 'Profile updated successfully');
+  }
+
+  private async logout(req: AuthenticatedRequest, res: Response): Promise<void> {
+    // Clear the HTTP-only cookie
+    res.clearCookie('accessToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict'
+    });
+    
+    res.success(null, 'Logout successful');
   }
 }
