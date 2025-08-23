@@ -1,0 +1,34 @@
+{
+  "folders": [
+    {
+      "name": "Root",
+      "path": "."
+    },
+    {
+      "name": "Backend",
+      "path": "./packages/backend"
+    },
+    {
+      "name": "Frontend",
+      "path": "./packages/frontend"
+    }
+  ],
+  "settings": {
+    "typescript.preferences.useAliasesForRenames": false,
+    "typescript.updateImportsOnFileMove.enabled": "always",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll.eslint": "explicit"
+    },
+    "eslint.workingDirectories": ["./packages/backend", "./packages/frontend"]
+  },
+  "extensions": {
+    "recommendations": [
+      "ms-vscode.vscode-typescript-next",
+      "dbaeumer.vscode-eslint",
+      "esbenp.prettier-vscode",
+      "bradlc.vscode-tailwindcss",
+      "ms-vscode.vscode-json"
+    ]
+  }
+}

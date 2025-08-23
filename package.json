@@ -1,0 +1,32 @@
+{
+  "name": "fullstack-monorepo",
+  "version": "1.0.0",
+  "description": "A fullstack TypeScript monorepo with Express.js + InversifyJS backend and React + Vite frontend",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "npm run dev --workspace=@fullstack/backend",
+    "dev:frontend": "npm run dev --workspace=@fullstack/frontend",
+    "build": "npm run build --workspaces",
+    "build:backend": "npm run build --workspace=@fullstack/backend",
+    "build:frontend": "npm run build --workspace=@fullstack/frontend",
+    "lint": "npm run lint --workspaces",
+    "test": "npm run test --workspaces",
+    "clean": "npm run clean --workspaces && rimraf node_modules"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "rimraf": "^5.0.5",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.45.0",
+    "typescript": "^5.1.6"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}
