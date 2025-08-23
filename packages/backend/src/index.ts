@@ -22,11 +22,7 @@ import { AuctionRepository } from "./repositories/auctionRepository";
 import { connectDB, closeDB } from "./infrastructure/db";
 
 // Import middleware
-import { 
-  standardizeResponses, 
-  globalErrorHandler, 
-  notFoundHandler 
-} from "./middleware/responseHandler";
+import { standardizeResponses, globalErrorHandler, notFoundHandler } from "./middleware/responseHandler";
 
 class Server {
   private app: express.Application;
@@ -60,21 +56,23 @@ class Server {
 
   private setupMiddleware(): void {
     // Security middleware
-    this.app.use(helmet({
-      contentSecurityPolicy: {
-        directives: {
-          defaultSrc: ["'self'"],
-          styleSrc: ["'self'", "'unsafe-inline'"],
-          scriptSrc: ["'self'"],
-          imgSrc: ["'self'", "data:", "https:"],
+    this.app.use(
+      helmet({
+        contentSecurityPolicy: {
+          directives: {
+            defaultSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            scriptSrc: ["'self'"],
+            imgSrc: ["'self'", "data:", "https:"],
+          },
         },
-      },
-      hsts: {
-        maxAge: 31536000,
-        includeSubDomains: true,
-        preload: true
-      }
-    }));
+        hsts: {
+          maxAge: 31536000,
+          includeSubDomains: true,
+          preload: true,
+        },
+      })
+    );
 
     // Rate limiting
     const limiter = rateLimit({
@@ -82,7 +80,7 @@ class Server {
       max: 1000, // Limit each IP to 1000 requests per windowMs
       message: {
         success: false,
-        error: 'Too many requests from this IP, please try again later'
+        error: "Too many requests from this IP, please try again later",
       },
       standardHeaders: true,
       legacyHeaders: false,
@@ -92,39 +90,35 @@ class Server {
     // CORS configuration
     this.app.use(
       cors({
-        origin: process.env.NODE_ENV === 'production' 
-          ? process.env.FRONTEND_URL 
-          : [
-              "http://localhost:3000",
-              "http://localhost:5173",
-              "http://127.0.0.1:3000",
-              "http://127.0.0.1:5173"
-            ],
+        origin:
+          process.env.NODE_ENV === "production"
+            ? process.env.FRONTEND_URL
+            : ["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000", "http://127.0.0.1:5173"],
         credentials: true,
-        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allowedHeaders: [
-          'Origin',
-          'X-Requested-With',
-          'Content-Type',
-          'Accept',
-          'Authorization',
-          'Cache-Control',
-          'Pragma'
+          "Origin",
+          "X-Requested-With",
+          "Content-Type",
+          "Accept",
+          "Authorization",
+          "Cache-Control",
+          "Pragma",
         ],
-        exposedHeaders: ['X-Total-Count']
+        exposedHeaders: ["X-Total-Count"],
       })
     );
 
     // Body parsing middleware
-    this.app.use(express.json({ limit: '10mb' }));
-    this.app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+    this.app.use(express.json({ limit: "10mb" }));
+    this.app.use(express.urlencoded({ extended: true, limit: "10mb" }));
     this.app.use(cookieParser());
 
     // Custom middleware
     this.app.use(standardizeResponses);
 
     // Request logging in development
-    if (process.env.NODE_ENV === 'development') {
+    if (process.env.NODE_ENV === "development") {
       this.app.use((req, res, next) => {
         console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
         next();
@@ -161,43 +155,42 @@ class Server {
         console.log(`🚀 Backend server running on http://localhost:${this.port}`);
         console.log(`📊 Health check available at http://localhost:${this.port}/health`);
         console.log(`🔗 API endpoints available at http://localhost:${this.port}/api`);
-        console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+        console.log(`🌍 Environment: ${process.env.NODE_ENV || "development"}`);
       });
 
       // Graceful shutdown handlers
       const gracefulShutdown = async (signal: string) => {
         console.log(`⚠️  Received ${signal}, shutting down gracefully...`);
-        
+
         server.close(async () => {
-          console.log('🔐 HTTP server closed');
-          
+          console.log("🔐 HTTP server closed");
+
           try {
             await closeDB();
-            console.log('✅ Database connection closed');
-            console.log('👋 Process terminated gracefully');
+            console.log("✅ Database connection closed");
+            console.log("👋 Process terminated gracefully");
             process.exit(0);
           } catch (error) {
-            console.error('❌ Error during shutdown:', error);
+            console.error("❌ Error during shutdown:", error);
             process.exit(1);
           }
         });
       };
 
-      process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-      process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+      process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+      process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
       // Handle uncaught exceptions
-      process.on('uncaughtException', (error) => {
-        console.error('💀 Uncaught Exception:', error);
+      process.on("uncaughtException", (error) => {
+        console.error("💀 Uncaught Exception:", error);
         process.exit(1);
       });
 
       // Handle unhandled rejections
-      process.on('unhandledRejection', (reason, promise) => {
-        console.error('💀 Unhandled Rejection at:', promise, 'reason:', reason);
+      process.on("unhandledRejection", (reason, promise) => {
+        console.error("💀 Unhandled Rejection at:", promise, "reason:", reason);
         process.exit(1);
       });
-
     } catch (error) {
       console.error("Failed to start server:", error);
       process.exit(1);

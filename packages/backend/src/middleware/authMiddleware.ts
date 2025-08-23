@@ -1,5 +1,5 @@
-import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
+import { Request, Response, NextFunction } from "express";
+import jwt from "jsonwebtoken";
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -16,14 +16,12 @@ export const authMiddleware = (req: AuthenticatedRequest, res: Response, next: N
   try {
     // Check for token in Authorization header
     const authHeader = req.headers.authorization;
-    const token = authHeader && authHeader.startsWith('Bearer ') 
-      ? authHeader.substring(7) 
-      : req.cookies?.accessToken; // Fallback to HTTP-only cookie
+    const token = authHeader && authHeader.startsWith("Bearer ") ? authHeader.substring(7) : req.cookies?.accessToken; // Fallback to HTTP-only cookie
 
     if (!token) {
       res.status(401).json({
         success: false,
-        error: 'Access token is required'
+        error: "Access token is required",
       });
       return;
     }
@@ -31,21 +29,21 @@ export const authMiddleware = (req: AuthenticatedRequest, res: Response, next: N
     // Verify JWT token
     const jwtSecret = process.env.JWT_SECRET;
     if (!jwtSecret) {
-      console.error('JWT_SECRET not configured');
+      console.error("JWT_SECRET not configured");
       res.status(500).json({
         success: false,
-        error: 'Server configuration error'
+        error: "Server configuration error",
       });
       return;
     }
 
     const decoded = jwt.verify(token, jwtSecret) as any;
-    
+
     // Attach user info to request
     req.user = {
       id: decoded.id,
       email: decoded.email,
-      name: decoded.name
+      name: decoded.name,
     };
 
     next();
@@ -53,15 +51,15 @@ export const authMiddleware = (req: AuthenticatedRequest, res: Response, next: N
     if (error instanceof jwt.JsonWebTokenError) {
       res.status(401).json({
         success: false,
-        error: 'Invalid access token'
+        error: "Invalid access token",
       });
       return;
     }
 
-    console.error('Auth middleware error:', error);
+    console.error("Auth middleware error:", error);
     res.status(500).json({
       success: false,
-      error: 'Authentication failed'
+      error: "Authentication failed",
     });
   }
 };
@@ -72,9 +70,7 @@ export const authMiddleware = (req: AuthenticatedRequest, res: Response, next: N
 export const optionalAuthMiddleware = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
   try {
     const authHeader = req.headers.authorization;
-    const token = authHeader && authHeader.startsWith('Bearer ') 
-      ? authHeader.substring(7) 
-      : req.cookies?.accessToken;
+    const token = authHeader && authHeader.startsWith("Bearer ") ? authHeader.substring(7) : req.cookies?.accessToken;
 
     if (!token) {
       next();
@@ -91,7 +87,7 @@ export const optionalAuthMiddleware = (req: AuthenticatedRequest, res: Response,
     req.user = {
       id: decoded.id,
       email: decoded.email,
-      name: decoded.name
+      name: decoded.name,
     };
 
     next();
@@ -109,19 +105,19 @@ export const authorizeRole = (roles: string[]) => {
     if (!req.user) {
       res.status(401).json({
         success: false,
-        error: 'Authentication required'
+        error: "Authentication required",
       });
       return;
     }
 
     // For now, we'll implement basic role checking
     // In a real app, you'd fetch user roles from database
-    const userRole = 'user'; // Default role
-    
+    const userRole = "user"; // Default role
+
     if (!roles.includes(userRole)) {
       res.status(403).json({
         success: false,
-        error: 'Insufficient permissions'
+        error: "Insufficient permissions",
       });
       return;
     }

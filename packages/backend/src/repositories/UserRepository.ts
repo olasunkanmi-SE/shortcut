@@ -1,6 +1,6 @@
-import { injectable } from 'inversify';
-import { ObjectId, Collection } from 'mongodb';
-import { getDB } from '../infrastructure/db';
+import { injectable } from "inversify";
+import { ObjectId, Collection } from "mongodb";
+import { getDB } from "../infrastructure/db";
 
 export interface User {
   _id?: ObjectId;
@@ -32,7 +32,7 @@ export interface UpdateUserDto {
 @injectable()
 export class UserRepository {
   private get collection(): Collection<User> {
-    return getDB().collection<User>('users');
+    return getDB().collection<User>("users");
   }
 
   async findAll(): Promise<User[]> {
@@ -40,8 +40,8 @@ export class UserRepository {
       const users = await this.collection.find({}).toArray();
       return users.map(this.transformUser);
     } catch (error) {
-      console.error('Error fetching users:', error);
-      throw new Error('Failed to fetch users from database');
+      console.error("Error fetching users:", error);
+      throw new Error("Failed to fetch users from database");
     }
   }
 
@@ -50,12 +50,12 @@ export class UserRepository {
       if (!ObjectId.isValid(id)) {
         return null;
       }
-      
+
       const user = await this.collection.findOne({ _id: new ObjectId(id) });
       return user ? this.transformUser(user) : null;
     } catch (error) {
-      console.error('Error fetching user by ID:', error);
-      throw new Error('Failed to fetch user from database');
+      console.error("Error fetching user by ID:", error);
+      throw new Error("Failed to fetch user from database");
     }
   }
 
@@ -64,8 +64,8 @@ export class UserRepository {
       const user = await this.collection.findOne({ email });
       return user ? this.transformUser(user) : null;
     } catch (error) {
-      console.error('Error fetching user by email:', error);
-      throw new Error('Failed to fetch user from database');
+      console.error("Error fetching user by email:", error);
+      throw new Error("Failed to fetch user from database");
     }
   }
 
@@ -74,30 +74,30 @@ export class UserRepository {
       // Check if user already exists
       const existingUser = await this.findByEmail(userData.email);
       if (existingUser) {
-        throw new Error('User with this email already exists');
+        throw new Error("User with this email already exists");
       }
 
       const now = new Date();
-      const newUser: Omit<User, '_id' | 'id'> = {
+      const newUser: Omit<User, "_id" | "id"> = {
         ...userData,
         createdAt: now,
         updatedAt: now,
       };
 
       const result = await this.collection.insertOne(newUser as User);
-      
+
       if (!result.insertedId) {
-        throw new Error('Failed to create user');
+        throw new Error("Failed to create user");
       }
 
       const createdUser = await this.findById(result.insertedId.toString());
       if (!createdUser) {
-        throw new Error('Failed to retrieve created user');
+        throw new Error("Failed to retrieve created user");
       }
 
       return createdUser;
     } catch (error) {
-      console.error('Error creating user:', error);
+      console.error("Error creating user:", error);
       throw error;
     }
   }
@@ -113,10 +113,7 @@ export class UserRepository {
         updatedAt: new Date(),
       };
 
-      const result = await this.collection.updateOne(
-        { _id: new ObjectId(id) },
-        { $set: updateFields }
-      );
+      const result = await this.collection.updateOne({ _id: new ObjectId(id) }, { $set: updateFields });
 
       if (result.matchedCount === 0) {
         return null;
@@ -124,8 +121,8 @@ export class UserRepository {
 
       return await this.findById(id);
     } catch (error) {
-      console.error('Error updating user:', error);
-      throw new Error('Failed to update user in database');
+      console.error("Error updating user:", error);
+      throw new Error("Failed to update user in database");
     }
   }
 
@@ -138,8 +135,8 @@ export class UserRepository {
       const result = await this.collection.deleteOne({ _id: new ObjectId(id) });
       return result.deletedCount === 1;
     } catch (error) {
-      console.error('Error deleting user:', error);
-      throw new Error('Failed to delete user from database');
+      console.error("Error deleting user:", error);
+      throw new Error("Failed to delete user from database");
     }
   }
 
@@ -147,8 +144,8 @@ export class UserRepository {
     try {
       return await this.collection.countDocuments();
     } catch (error) {
-      console.error('Error counting users:', error);
-      throw new Error('Failed to count users in database');
+      console.error("Error counting users:", error);
+      throw new Error("Failed to count users in database");
     }
   }
 
