@@ -21,7 +21,7 @@ export const UsersPage: React.FC = () => {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const response = await axios.get("/api/users");
+      const response = await axios.get("http://localhost:3001/api/users");
       setUsers(response.data);
       setError(null);
     } catch (err) {
@@ -37,7 +37,7 @@ export const UsersPage: React.FC = () => {
     if (!newUser.name || !newUser.email) return;
 
     try {
-      await axios.post("/api/users", newUser);
+      await axios.post("http://localhost:3001/api/users", newUser);
       setNewUser({ name: "", email: "" });
       fetchUsers(); // Refresh the list
     } catch (err) {
@@ -82,7 +82,9 @@ export const UsersPage: React.FC = () => {
               <div key={user.id} className="user-card">
                 <h3>{user.name}</h3>
                 <p>{user.email}</p>
-                <small>Created: {new Date(user.createdAt).toLocaleDateString()}</small>
+                <small>
+                  Created: {new Date(user.createdAt).toLocaleDateString()}
+                </small>
               </div>
             ))}
           </div>

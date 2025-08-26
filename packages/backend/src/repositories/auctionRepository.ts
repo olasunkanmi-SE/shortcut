@@ -24,14 +24,25 @@ export class AuctionRepository {
   /**
    * Find all auctions with optional filters and pagination
    */
-  async findAll(filters: AuctionFilters = {}, pagination: PaginationOptions = {}): Promise<PaginatedAuctions> {
+  async findAll(
+    filters: AuctionFilters = {},
+    pagination: PaginationOptions = {}
+  ): Promise<PaginatedAuctions> {
     try {
-      const { page = 1, limit = 10, sort_by = "auction_end", sort_order = "asc" } = pagination;
+      const {
+        page = 1,
+        limit = 10,
+        sort_by = "auction_end",
+        sort_order = "asc",
+      } = pagination;
 
       // Build filter query
       const query: any = {};
+      console.log(query);
 
       if (filters.make) query.make = new RegExp(filters.make, "i");
+      if (filters.description)
+        query.description = new RegExp(filters.description, "i");
       if (filters.model) query.model = new RegExp(filters.model, "i");
       if (filters.year_min || filters.year_max) {
         query.year = {};
@@ -55,7 +66,12 @@ export class AuctionRepository {
       // Execute queries
       const skip = (page - 1) * limit;
       const [auctions, total] = await Promise.all([
-        this.collection.find(query).sort(sort).skip(skip).limit(limit).toArray(),
+        this.collection
+          .find(query)
+          .sort(sort)
+          .skip(skip)
+          .limit(limit)
+          .toArray(),
         this.collection.countDocuments(query),
       ]);
 
@@ -112,11 +128,17 @@ export class AuctionRepository {
   async create(auctionData: CreateAuctionDto): Promise<Auction> {
     try {
       // Generate next auction ID
-      const lastAuction = await this.collection.findOne({}, { sort: { auction_id: -1 } });
+      const lastAuction = await this.collection.findOne(
+        {},
+        { sort: { auction_id: -1 } }
+      );
       const nextAuctionId = lastAuction ? lastAuction.auction_id + 1 : 1;
 
       // Generate next general ID
-      const lastGeneral = await this.collection.findOne({}, { sort: { id: -1 } });
+      const lastGeneral = await this.collection.findOne(
+        {},
+        { sort: { id: -1 } }
+      );
       const nextId = lastGeneral ? lastGeneral.id + 1 : 1;
 
       const now = new Date();
@@ -167,7 +189,10 @@ export class AuctionRepository {
   /**
    * Update auction
    */
-  async update(id: string, updateData: UpdateAuctionDto): Promise<Auction | null> {
+  async update(
+    id: string,
+    updateData: UpdateAuctionDto
+  ): Promise<Auction | null> {
     try {
       if (!ObjectId.isValid(id)) {
         return null;
@@ -181,11 +206,16 @@ export class AuctionRepository {
       // Convert end_time to string if provided
       if (updateFields.end_time) {
         updateFields.end_time =
-          updateFields.end_time instanceof Date ? updateFields.end_time.toISOString() : updateFields.end_time;
+          updateFields.end_time instanceof Date
+            ? updateFields.end_time.toISOString()
+            : updateFields.end_time;
         updateFields.auction_end = updateFields.end_time;
       }
 
-      const result = await this.collection.updateOne({ _id: new ObjectId(id) }, { $set: updateFields });
+      const result = await this.collection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: updateFields }
+      );
 
       if (result.matchedCount === 0) {
         return null;
@@ -201,7 +231,10 @@ export class AuctionRepository {
   /**
    * Place a bid on an auction
    */
-  async placeBid(auctionId: string, bidData: PlaceBidDto): Promise<Auction | null> {
+  async placeBid(
+    auctionId: string,
+    bidData: PlaceBidDto
+  ): Promise<Auction | null> {
     try {
       if (!ObjectId.isValid(auctionId)) {
         return null;
@@ -263,7 +296,9 @@ export class AuctionRepository {
       // Determine winner (highest bidder)
       let winner_id = null;
       if (auction.bids.length > 0) {
-        const highestBid = auction.bids.reduce((prev, current) => (prev.amount > current.amount ? prev : current));
+        const highestBid = auction.bids.reduce((prev, current) =>
+          prev.amount > current.amount ? prev : current
+        );
         winner_id = highestBid.user_id;
       }
 
@@ -317,10 +352,14 @@ export class AuctionRepository {
             _id: null,
             total_auctions: { $sum: 1 },
             active_auctions: {
-              $sum: { $cond: [{ $eq: ["$status", AuctionStatus.ACTIVE] }, 1, 0] },
+              $sum: {
+                $cond: [{ $eq: ["$status", AuctionStatus.ACTIVE] }, 1, 0],
+              },
             },
             ended_auctions: {
-              $sum: { $cond: [{ $eq: ["$status", AuctionStatus.ENDED] }, 1, 0] },
+              $sum: {
+                $cond: [{ $eq: ["$status", AuctionStatus.ENDED] }, 1, 0],
+              },
             },
             with_bids: {
               $sum: { $cond: [{ $gt: [{ $size: "$bids" }, 0] }, 1, 0] },
@@ -365,7 +404,10 @@ export class AuctionRepository {
   /**
    * Validate a bid amount
    */
-  private validateBid(auction: Auction, bidAmount: number): BidValidationResult {
+  private validateBid(
+    auction: Auction,
+    bidAmount: number
+  ): BidValidationResult {
     // Check if auction is active
     if (auction.status !== AuctionStatus.ACTIVE) {
       return {

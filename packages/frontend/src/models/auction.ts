@@ -134,7 +134,6 @@ export interface AuctionFilters {
   price_max?: number;
   status?: AuctionStatus;
   seller_id?: number;
-  description?: string;
 }
 
 /**
@@ -151,7 +150,7 @@ export interface PaginationOptions {
  * Interface for paginated auction results
  */
 export interface PaginatedAuctions {
-  data: any;
+  data: Auction[];
   total: number;
   page: number;
   limit: number;

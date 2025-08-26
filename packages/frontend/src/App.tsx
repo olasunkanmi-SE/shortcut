@@ -3,6 +3,7 @@ import { HomePage } from "./pages/HomePage";
 import { Navbar } from "./components/Navbar";
 import "./App.css";
 import { UsersPage } from "./pages/UsersPage";
+import { AuctionPage } from "./pages/AuctionPage";
 
 function App() {
   return (
@@ -13,6 +14,7 @@ function App() {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/users" element={<UsersPage />} />
+            <Route path="/auctions" element={<AuctionPage />} />
           </Routes>
         </main>
       </div>
